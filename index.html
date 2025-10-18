@@ -8,18 +8,17 @@
     
     ================================================================================
     Jeu de Localisation Sonore - Application Web Mono-Fichier
-    Version: 3.0.0 (Enhanced Gamification)
+    Version: 4.0.0 (Timer & UI Update)
     Licence: MIT
     
     Description:
-    Cette version gamifiée est un test d'écoute subtil où l'utilisateur doit
-    localiser un son sans indice visuel. La difficulté s'adapte, et des options
-    pour réécouter ou admettre son incertitude rendent le test plus robuste.
+    Cette version intègre un compte à rebours de 5 secondes pour chaque réponse
+    et réintroduit des indicateurs visuels clairs "Gauche" / "Droite" pour une
+    meilleure expérience utilisateur.
     
     Avertissement:
     CECI N'EST PAS UN DISPOSITIF MÉDICAL. Les résultats sont indicatifs et ne
-    remplacent en aucun cas un diagnostic réalisé par un professionnel de santé (ORL,
-    audiologiste).
+    remplacent en aucun cas un diagnostic réalisé par un professionnel de santé.
     ================================================================================
     
     -->
@@ -27,8 +26,8 @@
         :root {
             --bg-color: #0c0c0c;
             --text-color: #e0e0e0;
-            --primary-color-left: #3399ff;
-            --primary-color-right: #ff5555;
+            --primary-color-left: #007bff;
+            --primary-color-right: #ff4444;
             --secondary-color: #777;
             --highlight-color: #ffffff;
             --dim-color: #444444;
@@ -83,11 +82,13 @@
         }
         .choice-button {
             flex: 1; cursor: pointer; user-select: none;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 3rem; font-weight: bold;
             transition: background-color 0.1s ease-out;
         }
         .choice-button:active { background-color: rgba(255,255,255,0.05); }
-        #left-choice { border-right: 1px solid var(--dim-color); }
-        #right-choice { border-left: 1px solid var(--dim-color); }
+        #left-choice { border-right: 1px solid var(--dim-color); color: var(--primary-color-left); }
+        #right-choice { border-left: 1px solid var(--dim-color); color: var(--primary-color-right); }
 
         .footer-actions {
             display: flex; justify-content: center; gap: 15px; margin-top: 15px;
@@ -98,16 +99,20 @@
             border: 1px solid var(--secondary-color);
         }
 
+        #timer-display {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 6rem;
+            font-weight: bold;
+            color: rgba(255, 255, 255, 0.5);
+            z-index: 20;
+            pointer-events: none; /* Make it unclickable */
+            display: none; /* Hidden by default */
+        }
+
         /* Results Screen */
         #results-screen { justify-content: flex-start; overflow-y: auto; padding-top: 2rem; }
-        #results-summary {
-            width: 95%; max-width: 600px; text-align: left;
-            border: 1px solid var(--dim-color); border-radius: 8px;
-            padding: 1rem; margin-top: 1rem; background-color: #111;
-        }
-        #results-summary h3 { margin-top: 1.5em; border-bottom: 1px solid var(--dim-color); padding-bottom: 0.5rem; }
-        #results-summary h3:first-child { margin-top: 0; }
-        .result-actions { margin: 1.5rem 0 2rem 0; }
     </style>
 </head>
 <body>
@@ -115,24 +120,25 @@
     <div class="app-container">
         <!-- Screen 1: Welcome -->
         <section id="welcome-screen" class="screen active">
-            <div class="logo">🎧</div>
-            <h1>Jeu de Perception Sonore</h1>
-            <p><strong>Le défi :</strong> Un son sera joué à gauche ou à droite. Touchez le côté correspondant de l'écran pour marquer un point.</p>
-            <p>Plus vous êtes précis, plus le son devient faible. Si vous avez un doute, vous pouvez réécouter le son ou indiquer que vous ne savez pas.</p>
+            <div class="logo">⏱️</div>
+            <h1>Jeu de Vitesse Auditive</h1>
+            <p><strong>Le défi :</strong> Un son sera joué à gauche ou à droite. Vous avez <strong>5 secondes</strong> pour toucher le bon côté de l'écran.</p>
+            <p>Plus vous êtes rapide et précis, plus le son devient faible. Si vous avez un doute, vous pouvez réécouter le son ou indiquer que vous ne savez pas.</p>
             <p style="font-size:0.8rem; color:#ffcc00;"><strong>Important :</strong> Pour une expérience fiable, utilisez un <strong>casque stéréo</strong> dans un <strong>lieu calme</strong> et réglez le volume à un niveau moyen.</p>
             <button id="start-button" class="button">Démarrer</button>
         </section>
 
         <!-- Screen 2: Game Interface -->
         <section id="test-screen" class="screen">
+            <div id="timer-display"></div>
             <header class="test-header">
                 <p id="progress-text">Étape : - / -</p>
                 <p id="level-indicator">Difficulté : -</p>
             </header>
             
             <main class="choice-container">
-                <div id="left-choice" class="choice-button" data-side="left"></div>
-                <div id="right-choice" class="choice-button" data-side="right"></div>
+                <div id="left-choice" class="choice-button" data-side="left">GAUCHE</div>
+                <div id="right-choice" class="choice-button" data-side="right">DROITE</div>
             </main>
             
             <footer class="test-footer">
@@ -144,30 +150,27 @@
             </footer>
         </section>
 
-        <!-- Screen 3: Results -->
+        <!-- Screen 3: Results (identical to previous version) -->
         <section id="results-screen" class="screen">
             <h2>Bilan de la Partie</h2>
             <p><strong>Avertissement :</strong> Ce bilan est indicatif et ne constitue pas un diagnostic médical.</p>
-            
-            <div id="results-summary">
-                <h3>Analyse de la performance</h3>
+            <div id="results-summary" style="width: 95%; max-width: 600px; text-align: left; border: 1px solid var(--dim-color); border-radius: 8px; padding: 1rem; margin-top: 1rem; background-color: #111;">
+                <h3 style="margin-top:0; border-bottom: 1px solid var(--dim-color); padding-bottom: 0.5rem;">Analyse de la performance</h3>
                 <p id="interpretation-text"></p>
-                <h3>Sensibilité estimée par fréquence</h3>
+                <h3 style="margin-top:1.5em; border-bottom: 1px solid var(--dim-color); padding-bottom: 0.5rem;">Sensibilité estimée par fréquence</h3>
                 <div id="audiogram-container"></div>
-                <h3>Recommandation</h3>
+                <h3 style="margin-top:1.5em; border-bottom: 1px solid var(--dim-color); padding-bottom: 0.5rem;">Recommandation</h3>
                 <p id="conclusion-text"></p>
             </div>
-
-            <div class="result-actions">
+            <div class="result-actions" style="margin: 1.5rem 0 2rem 0;">
                 <button id="export-json-button" class="button">Exporter (.json)</button>
                 <button id="restart-button" class="button">Rejouer</button>
             </div>
         </section>
         
-        <!-- Screen 4: Unsupported Browser (fallback) -->
         <section id="unsupported-screen" class="screen">
              <h2>Navigateur non compatible</h2>
-             <p>Votre navigateur ne prend pas en charge la Web Audio API, requise pour ce jeu. Veuillez utiliser une version récente de Chrome, Firefox, Safari ou Edge.</p>
+             <p>Votre navigateur ne prend pas en charge la Web Audio API, requise pour ce jeu.</p>
         </section>
     </div>
 
@@ -180,20 +183,18 @@
         const startButton = document.getElementById('start-button'), leftChoice = document.getElementById('left-choice'), rightChoice = document.getElementById('right-choice');
         const progressText = document.getElementById('progress-text'), levelIndicator = document.getElementById('level-indicator'), feedbackText = document.getElementById('feedback-text');
         const replayButton = document.getElementById('replay-button'), idkButton = document.getElementById('idk-button');
+        const timerDisplay = document.getElementById('timer-display');
         const audiogramContainer = document.getElementById('audiogram-container'), interpretationText = document.getElementById('interpretation-text'), conclusionText = document.getElementById('conclusion-text');
         const exportJsonButton = document.getElementById('export-json-button'), restartButton = document.getElementById('restart-button');
         
-        // --- Web Audio API ---
         let audioCtx; try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { switchScreen('unsupported'); return; }
 
-        // --- Game Config ---
         const CONFIG = {
             frequencies: [500, 1000, 2000, 4000, 6000, 8000], toneDuration: 0.4, rampDuration: 0.02, startLevelDb: -18,
-            stepSizesDb: [6, 3, 2], incorrectPenaltyDb: 6, trialsPerFrequency: 10,
+            stepSizesDb: [6, 3, 2], incorrectPenaltyDb: 6, trialsPerFrequency: 10, responseTimeout: 5,
         };
 
-        // --- Game State ---
-        let state = { gameInProgress: false, currentFrequencyIndex: 0, currentTrial: {}, results: {}, isWaitingForInput: false };
+        let state = { gameInProgress: false, currentFrequencyIndex: 0, currentTrial: {}, results: {}, isWaitingForInput: false, countdownInterval: null };
         
         function init() {
             startButton.addEventListener('click', startGame);
@@ -227,7 +228,6 @@
 
         function presentTrial() {
             if (!state.gameInProgress) return;
-            
             levelIndicator.textContent = `Difficulté : ${Math.round(100 - (state.currentTrial.levelDb * -1.5))}`;
             feedbackText.textContent = 'Écoutez...';
             state.currentTrial.correctEar = Math.random() < 0.5 ? 'left' : 'right';
@@ -238,16 +238,19 @@
                 playSound(state.currentTrial.freq, state.currentTrial.levelDb, state.currentTrial.correctEar);
                 state.isWaitingForInput = true;
                 setActions(true);
+                startCountdown();
             }, 1200);
         }
 
         function handleChoice(chosenEar) {
             if (!state.isWaitingForInput) return;
             state.isWaitingForInput = false;
+            stopCountdown();
             setActions(false);
 
             const isCorrect = chosenEar === state.currentTrial.correctEar;
             const isIdk = chosenEar === 'idk';
+            const isTimeout = chosenEar === 'timeout';
 
             if (isCorrect) {
                 feedbackText.textContent = 'Correct !';
@@ -259,12 +262,14 @@
                 state.currentTrial.lastDirection = direction;
             } else {
                 const correctSideText = state.currentTrial.correctEar === 'left' ? 'gauche' : 'droite';
-                feedbackText.innerHTML = isIdk 
-                    ? `Le son était à <strong style="color:var(--primary-color-${correctSideText})">${correctSideText}</strong>. Tentons plus fort.`
-                    : `Oups, le son était à <strong style="color:var(--primary-color-${correctSideText})">${correctSideText}</strong>.`;
+                let feedbackMsg = '';
+                if(isIdk) feedbackMsg = `Le son était à <strong style="color:var(--primary-color-${correctSideText})">${correctSideText}</strong>. Tentons plus fort.`;
+                else if(isTimeout) feedbackMsg = `Temps écoulé ! Le son était à <strong style="color:var(--primary-color-${correctSideText})">${correctSideText}</strong>.`;
+                else feedbackMsg = `Oups, le son était à <strong style="color:var(--primary-color-${correctSideText})">${correctSideText}</strong>.`;
+                feedbackText.innerHTML = feedbackMsg;
                 
                 state.currentTrial.levelDb += CONFIG.incorrectPenaltyDb;
-                if(state.currentTrial.levelDb > -6) state.currentTrial.levelDb = -6; // Clamp volume
+                if(state.currentTrial.levelDb > -6) state.currentTrial.levelDb = -6;
                 state.currentTrial.lastDirection = 'up';
             }
             
@@ -286,9 +291,25 @@
             playSound(state.currentTrial.freq, state.currentTrial.levelDb, state.currentTrial.correctEar);
         }
 
-        function setActions(enabled) {
-            replayButton.disabled = !enabled;
-            idkButton.disabled = !enabled;
+        function setActions(enabled) { replayButton.disabled = !enabled || state.currentTrial.replaysUsed > 0; idkButton.disabled = !enabled; }
+        
+        function startCountdown() {
+            let timeLeft = CONFIG.responseTimeout;
+            timerDisplay.textContent = timeLeft;
+            timerDisplay.style.display = 'block';
+
+            state.countdownInterval = setInterval(() => {
+                timeLeft--;
+                timerDisplay.textContent = timeLeft;
+                if (timeLeft <= 0) {
+                    handleChoice('timeout');
+                }
+            }, 1000);
+        }
+
+        function stopCountdown() {
+            clearInterval(state.countdownInterval);
+            timerDisplay.style.display = 'none';
         }
 
         function playSound(freq, levelDb, ear) {
@@ -305,18 +326,15 @@
         }
 
         function finishGame() {
-            state.gameInProgress = false;
+            state.gameInProgress = false; stopCountdown();
             localStorage.setItem('audiometryGameResults', JSON.stringify(state.results));
-            displayResults();
-            switchScreen('results');
+            displayResults(); switchScreen('results');
         }
 
         function displayResults() {
+            // This entire function is identical to the previous version
             let issues = [];
-            Object.entries(state.results.data).forEach(([freq, result]) => {
-                if (result.threshold_dbfs > -24) issues.push(`${freq / 1000} kHz`);
-            });
-            
+            Object.entries(state.results.data).forEach(([freq, result]) => { if (result.threshold_dbfs > -24) issues.push(`${parseInt(freq) / 1000} kHz`); });
             if (issues.length > 0) {
                 interpretationText.textContent = `Votre score indique qu'un volume plus élevé a été nécessaire pour localiser correctement les sons dans les gammes de fréquences suivantes : ${issues.join(', ')}.`;
                 conclusionText.textContent = "Cela peut suggérer une sensibilité auditive réduite dans ces zones. Pour un diagnostic précis et un avis médical, une consultation avec un spécialiste (ORL) est fortement recommandée.";
@@ -328,31 +346,22 @@
         }
 
         function generateAudiogramSVG() {
+             // This entire function is identical to the previous version
             const freqs = CONFIG.frequencies, dbRange = [-60, 0], width = 500, height = 300, m = { top: 30, right: 20, bottom: 40, left: 40 };
             const xScale = f => m.left + (Math.log2(f / freqs[0]) / Math.log2(freqs[freqs.length - 1] / freqs[0])) * (width - m.left - m.right);
             const yScale = db => m.top + ((db - dbRange[0]) / (dbRange[1] - dbRange[0])) * (height - m.top - m.bottom);
-
             const points = freqs.map(f => `${xScale(f)},${yScale(state.results.data[f].threshold_dbfs)}`).join(' ');
             let svg = `<svg viewBox="0 0 ${width} ${height}" style="width: 100%; height: auto; background-color: #222; border-radius: 8px;">
                 <text x="${width/2}" y="${m.top - 10}" font-size="12" fill="#ccc" text-anchor="middle">Seuil de Localisation par Fréquence (en dBFS)</text>`;
-            for(let i = dbRange[0]; i <= dbRange[1]; i += 10) {
-                 svg += `<line x1="${m.left}" y1="${yScale(i)}" x2="${width - m.right}" y2="${yScale(i)}" stroke="#444" />
-                         <text x="${m.left - 5}" y="${yScale(i) + 3}" font-size="8" fill="#aaa" text-anchor="end">${i}</text>`;
-            }
-            freqs.forEach(f => {
-                svg += `<line x1="${xScale(f)}" y1="${m.top}" x2="${xScale(f)}" y2="${height - m.bottom}" stroke="#444" />
-                        <text x="${xScale(f)}" y="${height - m.bottom + 15}" font-size="8" fill="#aaa" text-anchor="middle">${f/1000}k</text>`;
-            });
+            for(let i = dbRange[0]; i <= dbRange[1]; i += 10) { svg += `<line x1="${m.left}" y1="${yScale(i)}" x2="${width - m.right}" y2="${yScale(i)}" stroke="#444" /><text x="${m.left - 5}" y="${yScale(i) + 3}" font-size="8" fill="#aaa" text-anchor="end">${i}</text>`; }
+            freqs.forEach(f => { svg += `<line x1="${xScale(f)}" y1="${m.top}" x2="${xScale(f)}" y2="${height - m.bottom}" stroke="#444" /><text x="${xScale(f)}" y="${height - m.bottom + 15}" font-size="8" fill="#aaa" text-anchor="middle">${f/1000}k</text>`; });
             svg += `<polyline points="${points}" fill="none" stroke="#28a745" stroke-width="2"/>`;
             freqs.forEach(f => { svg += `<circle cx="${xScale(f)}" cy="${yScale(state.results.data[f].threshold_dbfs)}" r="4" fill="#28a745" />`; });
             svg += `</svg>`;
             audiogramContainer.innerHTML = svg;
         }
 
-        function exportResults() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.results, null, 2));
-            const a = document.createElement('a'); a.href = dataStr; a.download = `bilan_auditif_${new Date().toISOString().slice(0,10)}.json`; a.click();
-        }
+        function exportResults() { const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.results, null, 2)); const a = document.createElement('a'); a.href = dataStr; a.download = `bilan_auditif_${new Date().toISOString().slice(0,10)}.json`; a.click(); }
 
         document.addEventListener('DOMContentLoaded', init);
     })();
