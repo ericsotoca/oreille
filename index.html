@@ -3,19 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Test Auditif Adaptatif</title>
+    <title>Jeu de Localisation Sonore</title>
     <!--
     
     ================================================================================
-    Test Auditif Adaptatif - Application Web Mono-Fichier
-    Version: 1.0.0
+    Jeu de Localisation Sonore - Application Web Mono-Fichier
+    Version: 2.0.0 (Gamified)
     Licence: MIT
     
     Description:
-    Cette application est un outil non-médical permettant d'évaluer de manière
-    interactive la sensibilité auditive par fréquence et par oreille. Elle utilise
-    la Web Audio API pour générer des sons purs et un algorithme adaptatif
-    (staircase) pour estimer les seuils de détection.
+    Cette application est un jeu non-médical visant à évaluer la capacité à
+    localiser des sons (gauche/droite) à différentes fréquences. La difficulté
+    s'adapte en fonction des réponses du joueur, en diminuant le volume des sons.
     
     Avertissement:
     CECI N'EST PAS UN DISPOSITIF MÉDICAL. Les résultats sont indicatifs et ne
@@ -35,254 +34,157 @@
     
     -->
     <style>
-        /* --- Reset & Base Styles --- */
         :root {
-            --bg-color: #000000;
+            --bg-color: #0c0c0c;
             --text-color: #e0e0e0;
-            --primary-color: #007bff;
+            --primary-color-left: #007bff;
+            --primary-color-right: #ff4444;
             --highlight-color: #ffffff;
-            --dim-color: #555555;
+            --dim-color: #444444;
             --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         }
 
         html, body {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            font-family: var(--font-family);
-            -webkit-tap-highlight-color: transparent; /* Disable tap highlight */
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; background-color: var(--bg-color);
+            color: var(--text-color); font-family: var(--font-family);
+            -webkit-tap-highlight-color: transparent;
         }
 
-        /* --- Layout & App Structure --- */
-        .app-container {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100%;
-            text-align: center;
-            padding: 1rem;
-            box-sizing: border-box;
+        .app-container, .screen {
+            display: flex; flex-direction: column; justify-content: center;
+            align-items: center; height: 100%; width: 100%;
+            text-align: center; box-sizing: border-box;
         }
+        
+        .screen { display: none; padding: 1rem; }
+        .screen.active { display: flex; }
 
-        .screen {
-            display: none;
-            width: 100%;
-            max-width: 600px;
-            height: 100%;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .screen.active {
-            display: flex;
-        }
-
-        /* --- Common Elements --- */
-        h1, h2 {
-            font-weight: 300;
-        }
-
-        p {
-            line-height: 1.6;
-            max-width: 90%;
-            margin: 1em auto;
-        }
+        h1, h2 { font-weight: 300; }
+        p { line-height: 1.6; max-width: 90%; margin: 1em auto; }
 
         .button {
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            padding: 15px 30px;
-            font-size: 1.2rem;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background-color 0.2s, transform 0.1s;
+            background-color: var(--primary-color-left); color: white; border: none;
+            padding: 15px 30px; font-size: 1.2rem; border-radius: 8px;
+            cursor: pointer; transition: background-color 0.2s, transform 0.1s;
             margin-top: 20px;
         }
+        .button:active { transform: scale(0.95); }
 
-        .button:active {
-            transform: scale(0.95);
-        }
+        /* Welcome Screen */
+        #welcome-screen .logo { font-size: 3rem; margin-bottom: 0.5em; }
+        #welcome-screen p { font-size: 0.9rem; color: var(--dim-color); }
+        #start-button { background-color: #28a745; }
 
-        /* --- Welcome Screen --- */
-        #welcome-screen .logo {
-            font-size: 3rem;
-            margin-bottom: 0.5em;
-        }
-
-        #welcome-screen p {
-            font-size: 0.9rem;
-            color: var(--dim-color);
-        }
-
-        #disclaimer-checkbox-label {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-top: 20px;
-            cursor: pointer;
-        }
-        
-        #disclaimer-checkbox-label input {
-            margin-right: 10px;
-        }
-
-        /* --- Test Screen --- */
-        #test-screen {
-            justify-content: space-between;
-        }
-
+        /* Test Screen */
+        #test-screen { justify-content: space-between; padding: 0; }
         .test-header, .test-footer {
-            flex-shrink: 0;
-            width: 100%;
-            padding: 1rem 0;
+            flex-shrink: 0; width: 100%; padding: 1rem; box-sizing: border-box;
         }
-        
-        .test-header p {
-            margin: 0;
-        }
+        .test-header { height: 15%; }
+        .test-footer { height: 10%; }
+        #level-indicator { font-size: 1.2rem; color: var(--highlight-color); }
+        #feedback-text { min-height: 1.5em; transition: opacity 0.2s; }
 
-        .test-main {
-            flex-grow: 1;
-            display: flex;
-            width: 100%;
-            justify-content: center;
-            align-items: center;
+        .choice-container {
+            display: flex; flex-grow: 1; width: 100%;
         }
+        .choice-button {
+            flex: 1; display: flex; align-items: center; justify-content: center;
+            font-size: 3rem; font-weight: bold;
+            cursor: pointer; user-select: none;
+            transition: background-color 0.1s ease-out, transform 0.1s ease-out;
+            border: 4px solid transparent;
+        }
+        .choice-button:active { transform: scale(0.98); }
         
-        .ear-zones {
-            display: flex;
-            justify-content: space-around;
-            width: 100%;
-            height: 100%;
+        #left-choice {
+            background-color: #111; border-right: 2px solid var(--dim-color);
+            color: var(--primary-color-left);
         }
+        #right-choice {
+            background-color: #111; border-left: 2px solid var(--dim-color);
+            color: var(--primary-color-right);
+        }
+        #left-choice.playing { border-color: var(--primary-color-left); }
+        #right-choice.playing { border-color: var(--primary-color-right); }
 
-        .ear-zone {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background-color 0.1s ease-out;
-            margin: 0 5px;
-            border: 2px solid var(--dim-color);
-            border-radius: 20px;
-            font-size: 2rem;
-            color: var(--dim-color);
+        /* Results Screen */
+        #results-screen { justify-content: flex-start; overflow-y: auto; padding-top: 2rem; }
+        #results-screen h2 { margin-bottom: 0; }
+        #results-summary {
+            width: 95%; max-width: 600px; text-align: left;
+            border: 1px solid var(--dim-color); border-radius: 8px;
+            padding: 1rem; margin-top: 1rem; background-color: #111;
         }
-        
-        .ear-zone.playing {
-            background-color: rgba(255, 255, 255, 0.1);
-            border-color: var(--highlight-color);
+        #results-summary h3 {
+            margin-top: 0; border-bottom: 1px solid var(--dim-color); padding-bottom: 0.5rem;
         }
-        
-        #i-hear-button {
-            width: 80%;
-            max-width: 300px;
-            padding: 20px;
-            font-size: 1.5rem;
-        }
-
-        /* --- Results Screen --- */
-        #results-screen {
-            justify-content: flex-start;
-            overflow-y: auto;
-        }
-        
-        #results-screen h2 {
-            margin-top: 2rem;
-        }
-
-        #audiogram-container {
-            width: 95%;
-            max-width: 500px;
-            margin: 1rem 0;
-        }
-        
-        .result-actions {
-            margin-top: 1.5rem;
-            margin-bottom: 2rem;
-        }
-
-        /* --- Fallback for unsupported browsers --- */
-        #unsupported-screen p {
-            background-color: #330000;
-            border: 1px solid #ff4444;
-            padding: 1em;
-            border-radius: 8px;
-        }
+        #audiogram-container { width: 100%; margin: 1rem 0; }
+        .result-actions { margin: 1.5rem 0 2rem 0; }
     </style>
 </head>
 <body>
 
     <div class="app-container">
-        <!-- Screen 1: Welcome & Disclaimer -->
+        <!-- Screen 1: Welcome -->
         <section id="welcome-screen" class="screen active">
-            <div class="logo">🎧</div>
-            <h1>Test Auditif Adaptatif</h1>
+            <div class="logo">🕹️</div>
+            <h1>Jeu de Localisation Sonore</h1>
             <p>
-                Cette application est un outil d'évaluation non-médical.
-                Pour des résultats indicatifs optimaux :
+                Votre mission : déterminer si le son provient de l'oreille <strong>gauche</strong> ou <strong>droite</strong>.
+                Plus vous réussissez, plus le jeu devient difficile (le son baisse).
             </p>
-            <ul>
-                <li>Utilisez un <strong>casque ou des écouteurs stéréo</strong>.</li>
-                <li>Installez-vous dans un <strong>environnement calme</strong>.</li>
-                <li>Réglez le volume de votre appareil à un niveau confortable (ex: 50%).</li>
-            </ul>
-            <p><strong>Avertissement Légal :</strong> Cet outil ne remplace pas un diagnostic professionnel. Les résultats sont purement indicatifs. Aucune donnée n'est collectée ou envoyée sur un serveur. Tout reste sur votre appareil.</p>
-            
-            <label id="disclaimer-checkbox-label">
-                <input type="checkbox" id="disclaimer-checkbox"> J'ai compris et j'accepte.
-            </label>
-
-            <button id="start-button" class="button" disabled>Démarrer le test</button>
+            <p><strong>Prérequis :</strong> Utilisez un <strong>casque stéréo</strong> dans un <strong>lieu calme</strong> et réglez votre volume à un niveau confortable (~50%).</p>
+            <p style="font-size:0.8rem; color:#ffcc00;"><strong>Avertissement :</strong> Ce jeu n'est pas un diagnostic médical. C'est un outil indicatif pour évaluer votre perception sonore. Consultez un ORL pour un bilan professionnel.</p>
+            <button id="start-button" class="button">Démarrer la partie</button>
         </section>
 
-        <!-- Screen 2: Main Test Interface -->
+        <!-- Screen 2: Game Interface -->
         <section id="test-screen" class="screen">
             <header class="test-header">
-                <p id="instruction-text">Écoutez attentivement...</p>
-                <p id="progress-text">Fréquence: - / Oreille: -</p>
+                <p id="progress-text">Fréquence en cours : -</p>
+                <p id="level-indicator">Niveau de difficulté : -</p>
             </header>
             
-            <main class="test-main">
-                <div class="ear-zones">
-                    <div id="left-ear-zone" class="ear-zone">G</div>
-                    <div id="right-ear-zone" class="ear-zone">D</div>
-                </div>
+            <main class="choice-container">
+                <div id="left-choice" class="choice-button" data-side="left">GAUCHE</div>
+                <div id="right-choice" class="choice-button" data-side="right">DROITE</div>
             </main>
             
             <footer class="test-footer">
-                <button id="i-hear-button" class="button">J'entends</button>
+                <p id="feedback-text">Écoutez attentivement...</p>
             </footer>
         </section>
 
         <!-- Screen 3: Results -->
         <section id="results-screen" class="screen">
-            <h2>Résultats du Test</h2>
+            <h2>Bilan de la Partie</h2>
             <p>Rappel : Ces résultats sont une estimation non-médicale.</p>
-            <div id="audiogram-container"></div>
-            <p id="interpretation-text"></p>
+            
+            <div id="results-summary">
+                <h3>Analyse des résultats</h3>
+                <p id="interpretation-text"></p>
+                <h3>Sensibilité par fréquence (score en dBFS)</h3>
+                <div id="audiogram-container"></div>
+                <h3>Conclusion</h3>
+                <p id="conclusion-text"></p>
+            </div>
+
             <div class="result-actions">
                 <button id="export-json-button" class="button">Exporter (.json)</button>
-                <button id="restart-button" class="button">Nouveau Test</button>
+                <button id="restart-button" class="button">Rejouer</button>
             </div>
         </section>
 
         <!-- Screen 4: Unsupported Browser -->
         <section id="unsupported-screen" class="screen">
             <h2>Navigateur non compatible</h2>
-            <p>Votre navigateur ne prend pas en charge la Web Audio API, qui est nécessaire pour cette application. Veuillez utiliser une version récente de Chrome, Firefox, Safari ou Edge.</p>
+            <p>Votre navigateur ne prend pas en charge la Web Audio API, requise pour ce jeu. Veuillez utiliser une version récente de Chrome, Firefox, Safari ou Edge.</p>
         </section>
     </div>
 
     <script>
-    // Self-executing anonymous function to encapsulate the app logic
     (function() {
         'use strict';
 
@@ -293,485 +195,258 @@
             results: document.getElementById('results-screen'),
             unsupported: document.getElementById('unsupported-screen'),
         };
-        const disclaimerCheckbox = document.getElementById('disclaimer-checkbox');
         const startButton = document.getElementById('start-button');
-        const iHearButton = document.getElementById('i-hear-button');
-        const leftEarZone = document.getElementById('left-ear-zone');
-        const rightEarZone = document.getElementById('right-ear-zone');
-        const instructionText = document.getElementById('instruction-text');
+        const leftChoice = document.getElementById('left-choice');
+        const rightChoice = document.getElementById('right-choice');
         const progressText = document.getElementById('progress-text');
+        const levelIndicator = document.getElementById('level-indicator');
+        const feedbackText = document.getElementById('feedback-text');
         const audiogramContainer = document.getElementById('audiogram-container');
         const interpretationText = document.getElementById('interpretation-text');
+        const conclusionText = document.getElementById('conclusion-text');
         const exportJsonButton = document.getElementById('export-json-button');
         const restartButton = document.getElementById('restart-button');
         
         // --- Web Audio API Setup ---
         let audioCtx;
-        let oscillator;
-        let gainNode;
-        let pannerNode;
-        let isAudioApiSupported = false;
-
         try {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             audioCtx = new AudioContext();
-            isAudioApiSupported = true;
         } catch (e) {
-            isAudioApiSupported = false;
+            switchScreen('unsupported'); return;
         }
 
-        // --- Test Configuration ---
+        // --- Game Configuration ---
         const CONFIG = {
-            frequencies: [250, 500, 1000, 2000, 4000, 8000], // Hz
-            ears: ['left', 'right'],
-            toneDuration: 0.5, // seconds
-            rampDuration: 0.02, // seconds
-            interStimulusDelay: { min: 600, max: 1200 }, // ms
-            // Staircase algorithm parameters
-            startLevelDb: -24, // Starting dBFS, relatively audible
-            stepSizesDb: [6, 2], // dB steps, decreases after first reversal
-            reversalsToConverge: 4,
-            maxTrialsPerFrequency: 12,
-            blankTrialProbability: 0.15, // 15% chance of a silent trial
+            frequencies: [500, 1000, 2000, 4000, 6000, 8000],
+            toneDuration: 0.4, rampDuration: 0.02,
+            startLevelDb: -18, // dBFS, niveau de départ "facile"
+            stepSizesDb: [6, 3, 2], // Les pas de difficulté
+            incorrectPenaltyDb: 6, // Augmentation du volume si erreur
+            reversalsToReduceStep: 2,
+            trialsPerFrequency: 10,
         };
 
-        // --- App State ---
+        // --- Game State ---
         let state = {
-            currentScreen: 'welcome',
-            testInProgress: false,
-            testQueue: [],
-            currentTest: null,
+            gameInProgress: false,
+            currentFrequencyIndex: 0,
+            currentTrial: {}, // { freq, levelDb, correctEar, trialsDone }
             results: {},
-            wakeLock: null,
+            isWaitingForInput: false,
         };
         
-        // --- Core Functions ---
-
-        /**
-         * Initializes the application, checks for compatibility and sets up listeners.
-         */
         function init() {
-            if (!isAudioApiSupported) {
-                switchScreen('unsupported');
-                return;
-            }
-
             setupEventListeners();
-            console.log("Application initialisée.");
         }
 
-        /**
-         * Manages screen transitions.
-         * @param {string} screenName - The key of the screen to show ('welcome', 'test', 'results').
-         */
         function switchScreen(screenName) {
             Object.values(screens).forEach(screen => screen.classList.remove('active'));
-            if (screens[screenName]) {
-                screens[screenName].classList.add('active');
-                state.currentScreen = screenName;
-            }
+            if (screens[screenName]) screens[screenName].classList.add('active');
         }
 
-        /**
-         * Sets up all event listeners for UI elements.
-         */
         function setupEventListeners() {
-            disclaimerCheckbox.addEventListener('change', () => {
-                startButton.disabled = !disclaimerCheckbox.checked;
-            });
-            startButton.addEventListener('click', startTest);
-            iHearButton.addEventListener('click', () => handleUserResponse(true));
+            startButton.addEventListener('click', startGame);
+            leftChoice.addEventListener('click', () => handleChoice('left'));
+            rightChoice.addEventListener('click', () => handleChoice('right'));
             exportJsonButton.addEventListener('click', exportResults);
             restartButton.addEventListener('click', () => window.location.reload());
         }
 
-        /**
-         * Prepares and starts the entire testing sequence.
-         */
-        async function startTest() {
-            // Resume AudioContext on user gesture
-            if (audioCtx.state === 'suspended') {
-                await audioCtx.resume();
-            }
+        async function startGame() {
+            if (audioCtx.state === 'suspended') await audioCtx.resume();
             
-            // Request Wake Lock to prevent screen sleep
-            await requestWakeLock();
-
             state.results = {
                 date: new Date().toISOString(),
                 device: navigator.userAgent,
-                calibration_note: "Volume système réglé par l'utilisateur.",
-                data: { left: {}, right: {} },
-                interpretation: ""
+                data: {},
             };
             
-            // Create the test queue
-            state.testQueue = [];
-            CONFIG.ears.forEach(ear => {
-                CONFIG.frequencies.forEach(freq => {
-                    state.testQueue.push({ ear, freq });
-                });
-            });
-            
-            // Shuffle for less predictability (optional, but good practice)
-            // state.testQueue.sort(() => Math.random() - 0.5);
-
+            state.currentFrequencyIndex = 0;
             switchScreen('test');
-            state.testInProgress = true;
-            runNextFrequencyTest();
+            state.gameInProgress = true;
+            startFrequencyRound();
         }
 
-        /**
-         * Runs the test for the next frequency/ear combination in the queue.
-         */
-        function runNextFrequencyTest() {
-            if (state.testQueue.length === 0) {
-                finishTest();
+        function startFrequencyRound() {
+            if (state.currentFrequencyIndex >= CONFIG.frequencies.length) {
+                finishGame();
                 return;
             }
 
-            state.currentTest = state.testQueue.shift();
-            
-            // Initialize staircase variables for this test
-            state.currentTest.levelDb = CONFIG.startLevelDb;
-            state.currentTest.stepSizeIndex = 0;
-            state.currentTest.trials = [];
-            state.currentTest.reversals = 0;
-            state.currentTest.lastDirection = null; // 'up' or 'down'
-
-            progressText.textContent = `Fréquence: ${state.currentTest.freq} Hz / Oreille: ${state.currentTest.ear === 'left' ? 'Gauche' : 'Droite'}`;
-            instructionText.textContent = "Appuyez sur « J'entends » si vous percevez un son.";
-
-            presentStimulus();
-        }
-        
-        let stimulusTimeout, responseTimeout;
-
-        /**
-         * Presents a single sound stimulus (or a blank).
-         */
-        function presentStimulus() {
-            clearTimeout(stimulusTimeout);
-            clearTimeout(responseTimeout);
-            iHearButton.disabled = true; // Disable until sound has played
-            
-            const delay = Math.random() * (CONFIG.interStimulusDelay.max - CONFIG.interStimulusDelay.min) + CONFIG.interStimulusDelay.min;
-            
-            stimulusTimeout = setTimeout(() => {
-                const isBlank = Math.random() < CONFIG.blankTrialProbability && state.currentTest.trials.length > 2;
-                
-                state.currentTest.trials.push({
-                    levelDb: isBlank ? null : state.currentTest.levelDb,
-                    timestamp: Date.now(),
-                    response: null,
-                    isBlank: isBlank,
-                });
-
-                if (!isBlank) {
-                    playSound(state.currentTest.freq, state.currentTest.levelDb, state.currentTest.ear);
-                } else {
-                    console.log(`BLANK TRIAL @ ${state.currentTest.freq} Hz`);
-                }
-                
-                // Set a window for user response
-                iHearButton.disabled = false;
-                responseTimeout = setTimeout(() => handleUserResponse(false), CONFIG.toneDuration * 1000 + 1500); // Response window = tone duration + 1.5s
-
-            }, delay);
-        }
-
-        /**
-         * Handles user response (or lack thereof).
-         * @param {boolean} userHeard - True if user pressed the button, false if timeout.
-         */
-        function handleUserResponse(userHeard) {
-            clearTimeout(responseTimeout);
-            iHearButton.disabled = true;
-            
-            const lastTrial = state.currentTest.trials[state.currentTest.trials.length - 1];
-            if (lastTrial.response !== null) return; // Avoid double responses
-
-            lastTrial.response = userHeard;
-            
-            // --- Staircase Logic ---
-            const heardOnTone = userHeard && !lastTrial.isBlank;
-            const missedOnTone = !userHeard && !lastTrial.isBlank;
-            const falseAlarm = userHeard && lastTrial.isBlank;
-
-            if (falseAlarm) {
-                // Ignore false alarm for threshold calculation but record it
-                instructionText.textContent = "Attention, pas de son émis.";
-            } else if (heardOnTone) {
-                // Heard it, decrease volume
-                const currentDirection = 'down';
-                if (state.currentTest.lastDirection && state.currentTest.lastDirection !== currentDirection) {
-                    state.currentTest.reversals++;
-                    if (state.currentTest.stepSizeIndex < CONFIG.stepSizesDb.length - 1) {
-                         state.currentTest.stepSizeIndex++;
-                    }
-                }
-                state.currentTest.levelDb -= CONFIG.stepSizesDb[state.currentTest.stepSizeIndex];
-                state.currentTest.lastDirection = currentDirection;
-                instructionText.textContent = "Bien reçu !";
-            } else if (missedOnTone) {
-                // Missed it, increase volume
-                const currentDirection = 'up';
-                if (state.currentTest.lastDirection && state.currentTest.lastDirection !== currentDirection) {
-                    state.currentTest.reversals++;
-                    if (state.currentTest.stepSizeIndex < CONFIG.stepSizesDb.length - 1) {
-                         state.currentTest.stepSizeIndex++;
-                    }
-                }
-                state.currentTest.levelDb += CONFIG.stepSizesDb[state.currentTest.stepSizeIndex];
-                state.currentTest.lastDirection = currentDirection;
-                instructionText.textContent = "Écoutez attentivement...";
-            }
-            
-            // Check for convergence
-            const isConverged = state.currentTest.reversals >= CONFIG.reversalsToConverge;
-            const maxTrialsReached = state.currentTest.trials.length >= CONFIG.maxTrialsPerFrequency;
-
-            if (isConverged || maxTrialsReached) {
-                calculateThreshold();
-                runNextFrequencyTest();
-            } else {
-                presentStimulus();
-            }
-        }
-        
-        /**
-         * Calculates and stores the threshold for the completed frequency test.
-         */
-        function calculateThreshold() {
-            const reversalTrials = [];
-            let lastDirection = null;
-            
-            state.currentTest.trials.forEach(trial => {
-                if(trial.isBlank || trial.response === null) return;
-                
-                const direction = trial.response ? 'down' : 'up';
-                if (lastDirection && direction !== lastDirection) {
-                    reversalTrials.push(trial.levelDb);
-                }
-                lastDirection = direction;
-            });
-            
-            // Average of the last few reversal points (more robust)
-            const reversalsToAverage = reversalTrials.slice(-CONFIG.reversalsToConverge);
-            let threshold = -1; // Default if not enough data
-            
-            if (reversalsToAverage.length > 1) {
-                const sum = reversalsToAverage.reduce((a, b) => a + b, 0);
-                threshold = sum / reversalsToAverage.length;
-            } else {
-                // Fallback: use the last level where sound was heard
-                const lastHeardTrial = [...state.currentTest.trials].reverse().find(t => t.response && !t.isBlank);
-                threshold = lastHeardTrial ? lastHeardTrial.levelDb : 0;
-            }
-
-            const { ear, freq } = state.currentTest;
-            state.results.data[ear][freq] = {
-                threshold_dbfs: Math.round(threshold),
-                trials: state.currentTest.trials
+            const freq = CONFIG.frequencies[state.currentFrequencyIndex];
+            state.currentTrial = {
+                freq: freq,
+                levelDb: CONFIG.startLevelDb,
+                trialsDone: 0,
+                reversals: 0,
+                stepSizeIndex: 0,
+                lastDirection: null,
             };
+
+            progressText.textContent = `Fréquence : ${freq} Hz`;
+            feedbackText.textContent = `Nouvelle fréquence. Préparez-vous...`;
+
+            setTimeout(presentTrial, 1500);
         }
 
+        function presentTrial() {
+            if (!state.gameInProgress) return;
+            
+            levelIndicator.textContent = `Difficulté : ${Math.round(100 - (state.currentTrial.levelDb * -1))}`;
+            feedbackText.textContent = 'Écoutez attentivement...';
+            
+            state.currentTrial.correctEar = Math.random() < 0.5 ? 'left' : 'right';
+            
+            // Short delay before playing the sound
+            setTimeout(() => {
+                playSound(state.currentTrial.freq, state.currentTrial.levelDb, state.currentTrial.correctEar);
+                state.isWaitingForInput = true;
+            }, 800);
+        }
 
-        /**
-         * Plays a pure tone at a specific frequency, level, and ear.
-         * @param {number} freq - Frequency in Hz.
-         * @param {number} levelDb - Level in dBFS.
-         * @param {string} ear - 'left' or 'right'.
-         */
+        function handleChoice(chosenEar) {
+            if (!state.isWaitingForInput) return;
+            state.isWaitingForInput = false;
+
+            const correct = chosenEar === state.currentTrial.correctEar;
+
+            if (correct) {
+                feedbackText.textContent = 'Correct !';
+                const currentDirection = 'down'; // Getting harder
+                if (state.currentTrial.lastDirection && state.currentTrial.lastDirection !== currentDirection) {
+                    state.currentTrial.reversals++;
+                    if (state.currentTrial.reversals % CONFIG.reversalsToReduceStep === 0 && state.currentTrial.stepSizeIndex < CONFIG.stepSizesDb.length - 1) {
+                         state.currentTrial.stepSizeIndex++;
+                    }
+                }
+                state.currentTrial.levelDb -= CONFIG.stepSizesDb[state.currentTrial.stepSizeIndex];
+                state.currentTrial.lastDirection = currentDirection;
+
+            } else {
+                feedbackText.innerHTML = `Oups ! Le son était à <span style="color:${state.currentTrial.correctEar === 'left' ? 'var(--primary-color-left)' : 'var(--primary-color-right)'};">${state.currentTrial.correctEar === 'left' ? 'gauche' : 'droite'}</span>.`;
+                const currentDirection = 'up'; // Getting easier
+                if (state.currentTrial.lastDirection && state.currentTrial.lastDirection !== currentDirection) {
+                    state.currentTrial.reversals++;
+                }
+                state.currentTrial.levelDb += CONFIG.incorrectPenaltyDb;
+                // Clamp to prevent it from getting too loud
+                if(state.currentTrial.levelDb > -6) state.currentTrial.levelDb = -6;
+                state.currentTrial.lastDirection = currentDirection;
+            }
+            
+            state.currentTrial.trialsDone++;
+
+            if (state.currentTrial.trialsDone >= CONFIG.trialsPerFrequency) {
+                // Round over, save result and move to next
+                state.results.data[state.currentTrial.freq] = { threshold_dbfs: state.currentTrial.levelDb };
+                state.currentFrequencyIndex++;
+                setTimeout(startFrequencyRound, 2000);
+            } else {
+                // Next trial for the same frequency
+                setTimeout(presentTrial, 1500);
+            }
+        }
+
         function playSound(freq, levelDb, ear) {
-            // Cleanup previous nodes if any
-            if (oscillator) oscillator.disconnect();
-            if (gainNode) gainNode.disconnect();
-            if (pannerNode) pannerNode.disconnect();
-
             const level = Math.pow(10, levelDb / 20);
             const now = audioCtx.currentTime;
 
-            // Oscillator
-            oscillator = audioCtx.createOscillator();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            const pannerNode = audioCtx.createStereoPanner();
+            
             oscillator.type = 'sine';
             oscillator.frequency.setValueAtTime(freq, now);
-
-            // Gain (Volume)
-            gainNode = audioCtx.createGain();
+            
             gainNode.gain.setValueAtTime(0, now);
             gainNode.gain.linearRampToValueAtTime(level, now + CONFIG.rampDuration);
             gainNode.gain.setValueAtTime(level, now + CONFIG.toneDuration - CONFIG.rampDuration);
             gainNode.gain.linearRampToValueAtTime(0, now + CONFIG.toneDuration);
-
-            // Panner
-            pannerNode = audioCtx.createStereoPanner();
+            
             pannerNode.pan.setValueAtTime(ear === 'left' ? -1 : 1, now);
             
-            // Connect nodes: Oscillator -> Gain -> Panner -> Destination
-            oscillator.connect(gainNode);
-            gainNode.connect(pannerNode);
-            pannerNode.connect(audioCtx.destination);
+            oscillator.connect(gainNode).connect(pannerNode).connect(audioCtx.destination);
             
-            // Start and Stop
             oscillator.start(now);
             oscillator.stop(now + CONFIG.toneDuration);
 
             // Visual feedback
-            const earZone = ear === 'left' ? leftEarZone : rightEarZone;
-            earZone.classList.add('playing');
-            setTimeout(() => earZone.classList.remove('playing'), CONFIG.toneDuration * 1000);
+            const choiceEl = ear === 'left' ? leftChoice : rightChoice;
+            choiceEl.classList.add('playing');
+            setTimeout(() => choiceEl.classList.remove('playing'), CONFIG.toneDuration * 1000);
         }
 
-        /**
-         * Finalizes the test, displays results, and releases resources.
-         */
-        function finishTest() {
-            state.testInProgress = false;
-            releaseWakeLock();
-
-            // Store results in localStorage
-            saveResultsToLocalStorage();
-
-            // Display results
+        function finishGame() {
+            state.gameInProgress = false;
+            localStorage.setItem('audiometryGameResults', JSON.stringify(state.results));
             displayResults();
             switchScreen('results');
         }
 
-        /**
-         * Renders the final results on the results screen.
-         */
         function displayResults() {
-            // 1. Generate Interpretation
-            let interpretation = "Votre audition semble être dans la normale pour les fréquences testées. ";
-            let potentialIssues = [];
-            
-            Object.keys(state.results.data).forEach(ear => {
-                Object.keys(state.results.data[ear]).forEach(freq => {
-                    const threshold = state.results.data[ear][freq].threshold_dbfs;
-                    // Note: dBFS thresholds are device-dependent. This is a very rough estimate.
-                    // -20 dBFS is an arbitrary but conservative "potential issue" line.
-                    if (threshold > -20) { 
-                        potentialIssues.push(`une potentielle perte à ${freq} Hz pour l'oreille ${ear === 'left' ? 'gauche' : 'droite'}`);
-                    }
-                });
+            // Interpretation
+            let issues = [];
+            Object.entries(state.results.data).forEach(([freq, result]) => {
+                // Thresholds are relative. We consider anything above -24 dBFS as potentially weak.
+                if (result.threshold_dbfs > -24) {
+                    issues.push(`${freq} Hz`);
+                }
             });
-
-            if (potentialIssues.length > 0) {
-                interpretation = "Le test suggère " + potentialIssues.join(', ') + ". ";
-                interpretation += "Nous vous recommandons de consulter un professionnel de santé (ORL) pour un diagnostic complet.";
+            
+            if (issues.length > 0) {
+                interpretationText.textContent = `Votre score suggère une sensibilité potentiellement réduite dans les fréquences suivantes : ${issues.join(', ')}. Cela signifie qu'il vous a fallu un volume plus élevé pour localiser correctement le son dans ces gammes.`;
+                conclusionText.textContent = "Pour une analyse approfondie et un diagnostic précis, il est fortement conseillé de consulter un spécialiste (ORL ou audiologiste).";
             } else {
-                 interpretation += "Continuez à protéger votre audition."
+                interpretationText.textContent = "Vos résultats indiquent une bonne capacité à localiser les sons à de faibles volumes sur l'ensemble des fréquences testées.";
+                conclusionText.textContent = "Excellent ! Continuez de protéger votre audition en évitant les expositions sonores prolongées et excessives.";
             }
-            state.results.interpretation = interpretation;
-            interpretationText.textContent = interpretation;
 
-            // 2. Generate SVG Audiogram
             generateAudiogramSVG();
         }
 
-        /**
-         * Generates and injects an SVG audiogram into the DOM.
-         */
         function generateAudiogramSVG() {
             const freqs = CONFIG.frequencies;
-            const dbRange = [-60, 10]; // dBFS range for Y-axis
-            
-            const width = 500;
-            const height = 300;
+            const dbRange = [-60, 0];
+            const width = 500, height = 300;
             const margin = { top: 20, right: 20, bottom: 40, left: 40 };
 
             const xScale = (freq) => margin.left + (Math.log2(freq / freqs[0]) / Math.log2(freqs[freqs.length - 1] / freqs[0])) * (width - margin.left - margin.right);
             const yScale = (db) => margin.top + ((db - dbRange[0]) / (dbRange[1] - dbRange[0])) * (height - margin.top - margin.bottom);
 
-            let svg = `<svg viewBox="0 0 ${width} ${height}" style="width: 100%; height: auto; background-color: #111; border-radius: 8px;">`;
+            let svg = `<svg viewBox="0 0 ${width} ${height}" style="width: 100%; height: auto; background-color: #222; border-radius: 8px;">`;
 
             // Grid lines and labels
-            svg += `<text x="${width/2}" y="${margin.top}" font-size="12" fill="#fff" text-anchor="middle">Audiogramme (Estimé, en dBFS)</text>`;
+            svg += `<text x="${width/2}" y="${margin.top}" font-size="10" fill="#ccc" text-anchor="middle">Score de sensibilité (niveau minimal atteint en dBFS)</text>`;
             for(let i = dbRange[0]; i <= dbRange[1]; i += 10) {
-                 svg += `<line x1="${margin.left}" y1="${yScale(i)}" x2="${width - margin.right}" y2="${yScale(i)}" stroke="#333" />`;
+                 svg += `<line x1="${margin.left}" y1="${yScale(i)}" x2="${width - margin.right}" y2="${yScale(i)}" stroke="#444" />`;
                  svg += `<text x="${margin.left - 5}" y="${yScale(i) + 3}" font-size="8" fill="#aaa" text-anchor="end">${i}</text>`;
             }
             freqs.forEach(freq => {
-                svg += `<line x1="${xScale(freq)}" y1="${margin.top}" x2="${xScale(freq)}" y2="${height - margin.bottom}" stroke="#333" />`;
+                svg += `<line x1="${xScale(freq)}" y1="${margin.top}" x2="${xScale(freq)}" y2="${height - margin.bottom}" stroke="#444" />`;
                 svg += `<text x="${xScale(freq)}" y="${height - margin.bottom + 15}" font-size="8" fill="#aaa" text-anchor="middle">${freq/1000}k</text>`;
             });
 
-            // Data points and lines
-            const leftPoints = freqs.map(f => `${xScale(f)},${yScale(state.results.data.left[f].threshold_dbfs)}`).join(' ');
-            const rightPoints = freqs.map(f => `${xScale(f)},${yScale(state.results.data.right[f].threshold_dbfs)}`).join(' ');
-
-            svg += `<polyline points="${leftPoints}" fill="none" stroke="#007bff" stroke-width="2"/>`;
-            svg += `<polyline points="${rightPoints}" fill="none" stroke="#ff4444" stroke-width="2"/>`;
-            
+            // Data line
+            const points = freqs.map(f => `${xScale(f)},${yScale(state.results.data[f].threshold_dbfs)}`).join(' ');
+            svg += `<polyline points="${points}" fill="none" stroke="#00c853" stroke-width="2"/>`;
             freqs.forEach(f => {
-                svg += `<circle cx="${xScale(f)}" cy="${yScale(state.results.data.left[f].threshold_dbfs)}" r="3" fill="#007bff" />`; // Left
-                svg += `<circle cx="${xScale(f)}" cy="${yScale(state.results.data.right[f].threshold_dbfs)}" r="3" fill="#ff4444" />`; // Right
+                svg += `<circle cx="${xScale(f)}" cy="${yScale(state.results.data[f].threshold_dbfs)}" r="4" fill="#00c853" />`;
             });
-            
-            // Legend
-            svg += `<text x="${margin.left + 10}" y="${margin.top + 15}" font-size="10" fill="#007bff">Gauche</text>`;
-            svg += `<text x="${margin.left + 10}" y="${margin.top + 30}" font-size="10" fill="#ff4444">Droite</text>`;
             
             svg += `</svg>`;
             audiogramContainer.innerHTML = svg;
         }
 
-        /**
-         * Saves the current results to localStorage.
-         */
-        function saveResultsToLocalStorage() {
-            try {
-                localStorage.setItem('audiometryResults', JSON.stringify(state.results));
-            } catch (e) {
-                console.error("Erreur lors de la sauvegarde dans localStorage:", e);
-            }
-        }
-        
-        /**
-         * Exports results as a JSON file.
-         */
         function exportResults() {
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.results, null, 2));
-            const downloadAnchorNode = document.createElement('a');
-            downloadAnchorNode.setAttribute("href", dataStr);
-            downloadAnchorNode.setAttribute("download", `resultats_auditifs_${new Date().toISOString().slice(0,10)}.json`);
-            document.body.appendChild(downloadAnchorNode);
-            downloadAnchorNode.click();
-            downloadAnchorNode.remove();
+            const a = document.createElement('a');
+            a.href = dataStr;
+            a.download = `bilan_jeu_auditif_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
         }
 
-        // --- Utility Functions ---
-        
-        /**
-         * Attempts to acquire a screen wake lock.
-         */
-        async function requestWakeLock() {
-            if ('wakeLock' in navigator) {
-                try {
-                    state.wakeLock = await navigator.wakeLock.request('screen');
-                    console.log('Wake Lock est actif.');
-                } catch (err) {
-                    console.error(`${err.name}, ${err.message}`);
-                }
-            }
-        }
-        
-        /**
-         * Releases the screen wake lock if it's held.
-         */
-        function releaseWakeLock() {
-            if (state.wakeLock !== null) {
-                state.wakeLock.release().then(() => {
-                    state.wakeLock = null;
-                    console.log('Wake Lock libéré.');
-                });
-            }
-        }
-
-        // --- App Entry Point ---
         document.addEventListener('DOMContentLoaded', init);
-
     })();
     </script>
 </body>
